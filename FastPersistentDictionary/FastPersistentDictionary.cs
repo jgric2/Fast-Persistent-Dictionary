@@ -83,7 +83,7 @@ namespace FastPersistentDictionary
             if (File.Exists(FileLocation))
                 File.Delete(FileLocation);
 
-            FileStream = new FileStream(FileLocation, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, fileStreamBufferSize, FileOptions.RandomAccess); //| FileOptions.DeleteOnClose);
+            FileStream = new FileStream(FileLocation, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, fileStreamBufferSize, FileOptions.RandomAccess | FileOptions.DeleteOnClose); //| FileOptions.DeleteOnClose);
             _updateTimer = new Timer(updateRate);
             _updateTimer.Elapsed += UpdateTimerElapsedEventHandler;
 
