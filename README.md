@@ -16,7 +16,6 @@ High frequency updates are managed via a timer which triggers a background threa
 The project also provides exception handling and recovery features. A dispose mechanism is incorporated ensuring that all resources are released when the instance is no longer required, enhancing the project’s stability and resilience.
 
 Fast Persistent Dictionary is an open-source project crafted with care, providing a robust and efficient persistent dictionary in C#. It's an invaluable tool when building applications requiring efficient, reliable, and persistent data storage.
-You can also add your branding in a cover image. It makes the README unique and gets people's attention quickly.
 
 
 ## Fast Persistent Dictionary Features
