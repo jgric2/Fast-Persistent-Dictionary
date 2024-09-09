@@ -39,7 +39,7 @@ namespace FastPersistentDictionary
 
 
         public bool CanCompact = false;
-        internal FileStream FileStream;
+        public FileStream FileStream;
 
 
         private bool _disposed;
@@ -79,7 +79,11 @@ namespace FastPersistentDictionary
 
             UseCompression = useCompression;
 
-            FileStream = new FileStream(FileLocation, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, fileStreamBufferSize, FileOptions.RandomAccess | FileOptions.DeleteOnClose);
+
+            if (File.Exists(FileLocation))
+                File.Delete(FileLocation);
+
+            FileStream = new FileStream(FileLocation, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, fileStreamBufferSize, FileOptions.RandomAccess); //| FileOptions.DeleteOnClose);
             _updateTimer = new Timer(updateRate);
             _updateTimer.Elapsed += UpdateTimerElapsedEventHandler;
 
@@ -95,8 +99,6 @@ namespace FastPersistentDictionary
                 DictionaryAccessor = new DictionaryAccessor<TKey, TValue>(this, _updateTimer, _compressionHandler, _lockObj, FileStream);
 
 
-            if (File.Exists(FileLocation))
-                File.Delete(FileLocation);
 
          
 
