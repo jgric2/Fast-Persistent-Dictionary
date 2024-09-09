@@ -96,7 +96,6 @@ namespace FastPersistentDictionary.Benchmark
                 string value = $"Value{i} {longSentences[i % longSentences.Length]}";
                 fastPersistentDictionary.Add(key, value);
             }
-            fastPersistentDictionary.CompactDatabaseFile();
         }
 
         [Benchmark]
