@@ -40,7 +40,7 @@ namespace FastPersistentDictionary
 
         public bool CanCompact = false;
         public FileStream FileStream;
-
+        public FileStream FileStream_Keys;
 
         private bool _disposed;
         private readonly object _lockObj = new object();
@@ -48,42 +48,45 @@ namespace FastPersistentDictionary
         private readonly ICompressionHandler<TKey, TValue> _compressionHandler;
 
         private Timer _updateTimer;
-        internal readonly DictionaryAccessor<TKey, TValue> DictionaryAccessor;
+        internal readonly IDictionaryAccessor<TKey, TValue> DictionaryAccessor;
         internal readonly string FileLocation;
-        internal readonly string FastPersistentDictionaryVersion = "1.0.0.5";
-        //internal readonly bool CrashRecovery;
+        internal readonly string FastPersistentDictionaryVersion = "1.0.0.7";
+        internal readonly bool CrashRecovery;
 
+        internal bool DeleteDBOnClose;
         internal readonly bool UseCompression;
         internal float PercentageChangeBeforeCompact;
 
         //Main create or load a FastPersistentDictionary into memory
         public FastPersistentDictionary(
             string path = "",
-            //bool crashRecovery = false,
+            bool crashRecovery = false,
             int updateRate = 1000,
+            bool deleteDBOnClose = false,
             float percentageChangeBeforeCompact = 50,
             int fileStreamBufferSize = 8196,
             string importSavedFastPersistentDictionary = "",
             IEqualityComparer<TKey>? equalityComparer = null,
             bool useCompression = false)
         {
-           // CrashRecovery = crashRecovery;
+            CrashRecovery = crashRecovery;
+            DeleteDBOnClose = deleteDBOnClose;
 
             if (path == "")
                 path = Path.GetTempFileName();
 
             FileLocation = path;
-            
+
             _serializer = new Serializer(new AllPropertiesExtractor(), options: GroBufOptions.WriteEmptyObjects);
             Directory.CreateDirectory(Path.GetDirectoryName(FileLocation));
 
             UseCompression = useCompression;
 
 
-            if (File.Exists(FileLocation))
-                File.Delete(FileLocation);
+            var fileOptions = FileOptions.RandomAccess;
 
-            FileStream = new FileStream(FileLocation, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, fileStreamBufferSize, FileOptions.RandomAccess | FileOptions.DeleteOnClose); //| FileOptions.DeleteOnClose);
+            FileStream = new FileStream(FileLocation, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, fileStreamBufferSize, fileOptions); //| FileOptions.DeleteOnClose);
+
             _updateTimer = new Timer(updateRate);
             _updateTimer.Elapsed += UpdateTimerElapsedEventHandler;
 
@@ -93,17 +96,22 @@ namespace FastPersistentDictionary
                 _compressionHandler = new SerializerUnCompressed<TKey, TValue>(_serializer);
 
 
-            //if (CrashRecovery)
-            //    DictionaryAccessor = new DictionaryAccessor_RecoverMode<TKey, TValue>(this, _updateTimer, _compressionHandler, _lockObj, FileStream);
-            //else
+            if (CrashRecovery)
+            {
+                string location = Path.GetDirectoryName(FileLocation);
+                string Fname = Path.GetFileNameWithoutExtension(FileLocation);
+                string PathKeys = Path.Combine(location, Fname) + ".prec";
+
+                FileStream_Keys = new FileStream(PathKeys, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 8196, FileOptions.SequentialScan);        
+                DictionaryAccessor = new DictionaryAccessor_RecoverMode<TKey, TValue>(this, _updateTimer, _compressionHandler, _lockObj, FileStream, FileStream_Keys);
+            }
+            else
                 DictionaryAccessor = new DictionaryAccessor<TKey, TValue>(this, _updateTimer, _compressionHandler, _lockObj, FileStream);
 
 
 
-         
-
             PercentageChangeBeforeCompact = percentageChangeBeforeCompact;
-           
+
             _dictionaryQuery = new DictionaryQuery<TKey, TValue>(this, DictionaryAccessor, _updateTimer, _compressionHandler, PercentageChangeBeforeCompact, _lockObj, FileStream);
             _dictionaryIo = new DictionaryIo<TKey, TValue>(this, _compressionHandler, _dictionaryQuery, _lockObj, FileStream, _serializer, UseCompression);
             _dictionaryObject = new DictionaryObject<TKey, TValue>(DictionaryAccessor, _lockObj);
@@ -111,6 +119,9 @@ namespace FastPersistentDictionary
             _dictionaryMathOperations = new DictionaryMathOperations<TKey, TValue>(this, DictionaryAccessor, _dictionaryOperations, _compressionHandler, _lockObj, FileStream);
 
             DictionaryAccessor.Comparer = equalityComparer ?? EqualityComparer<TKey>.Default;
+
+            CheckDBValidStartup(crashRecovery);
+
 
             if (importSavedFastPersistentDictionary != "" && File.Exists(importSavedFastPersistentDictionary))
                 _dictionaryIo.LoadDictionary(importSavedFastPersistentDictionary);
@@ -122,18 +133,64 @@ namespace FastPersistentDictionary
             if (_disposed)
                 return;
 
-            _updateTimer.Stop();
-            _updateTimer = null;
-            FileStream.Dispose();
-            FileStream.Close();
-            FileStream = null;
+
+            if (DeleteDBOnClose)
+            {
+
+                _updateTimer.Stop();
+                _updateTimer = null;
+                FileStream.Dispose();
+                FileStream.Close();
+                FileStream = null;
+
+                FileStream_Keys.Dispose();
+                FileStream_Keys.Close();
+                FileStream_Keys = null;
+
+                if (File.Exists(FileLocation))
+                    File.Delete(FileLocation);
+
+                var fpath = Path.GetDirectoryName(FileLocation);
+                var fname = Path.GetFileNameWithoutExtension(FileLocation);
+                var recFullPath = Path.Combine(fpath, fname + ".prec");
+
+                if (File.Exists(recFullPath))
+                    File.Delete(recFullPath);
+            }
+            else
+            {
+                //Write out save
+                //
+                var tempPath = Path.GetTempFileName();
+                SaveDictionary(tempPath, comment: "Time Saved: " + DateTime.Now.ToString());
+
+                _updateTimer.Stop();
+                _updateTimer = null;
+                FileStream.Dispose();
+                FileStream.Close();
+                FileStream = null;
+
+                if (File.Exists(FileLocation))
+                    File.Delete(FileLocation);
+
+                if (File.Exists(tempPath))
+                    File.Move(tempPath, FileLocation);
+
+                var fpath = Path.GetDirectoryName(FileLocation);
+                var fname = Path.GetFileNameWithoutExtension(FileLocation);
+                var recFullPath = Path.Combine(fpath, fname + ".prec");
+
+                if (File.Exists(recFullPath))
+                    File.Delete(recFullPath);
+            }
+
+
 
             try
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
-                if (File.Exists(FileLocation))
-                    File.Delete(FileLocation);
+
             }
             catch
             {
@@ -148,6 +205,128 @@ namespace FastPersistentDictionary
         {
             Dispose();
         }
+
+        private void CheckDBValidStartup(bool crashRecovery)
+        {
+            bool successLoad = false;
+            if (File.Exists(FileLocation) && FileStream.Length != 0)
+            {
+                //todo:
+                //1. TRY LOAD
+                try
+                {
+                    var loadedDict = LoadDictionary(FileLocation);
+                    successLoad = true;
+                }
+                catch
+                {
+                    successLoad = false;
+                }
+
+                if (successLoad == false && crashRecovery)
+                {
+                    var fpath = Path.GetDirectoryName(FileLocation);
+                    var fname = Path.GetFileNameWithoutExtension(FileLocation);
+                    var recFullPath = Path.Combine(fpath, fname + ".prec");
+                    if (File.Exists(recFullPath))
+                    {
+                        DictionarySerializedLookup.Clear();
+                        var buffer8 = new byte[8];
+                        var buffer4 = new byte[4];
+                        var buffer2 = new byte[2];
+
+                        while (FileStream_Keys.Position < FileStream_Keys.Length)
+                        {
+                            // Read keySerializedLen
+                            FileStream_Keys.Read(buffer2, 0, 2);
+                            var keySerializedLen = BitConverter.ToUInt16(buffer2, 0);
+
+                            // Read keySerialized
+                            var keySerialized = new byte[keySerializedLen];
+                            FileStream_Keys.Read(keySerialized, 0, keySerializedLen);
+
+                            // Read valuePos
+                            FileStream_Keys.Read(buffer8, 0, 8);
+                            var valuePos = BitConverter.ToInt64(buffer8, 0);
+
+                            // Read valueLen
+                            FileStream_Keys.Read(buffer4, 0, 4);
+                            var valueLen = BitConverter.ToInt32(buffer4, 0);
+
+                            var keyDeserialized = _compressionHandler.DeserializeKey(keySerialized);
+
+                            if (DictionarySerializedLookup.ContainsKey(keyDeserialized))
+                            {
+                                if (valuePos == -1 || valueLen == -1)
+                                {
+                                    DictionarySerializedLookup.Remove(keyDeserialized);
+                                }
+                                else
+                                {
+                                    DictionarySerializedLookup[keyDeserialized] = new KeyValuePair<long, int>(valuePos, valueLen);
+                                }
+                            }
+                            else
+                            {
+                                if (valuePos != -1 || valueLen != -1)
+                                    DictionarySerializedLookup.Add(keyDeserialized, new KeyValuePair<long, int>(valuePos, valueLen));
+                            }
+                        }
+
+                        //WRITE CLEAN RECOVER FILE
+                        FileStream_Keys.SetLength(0);
+                        List<(TKey, KeyValuePair<long, int>)> corruptedValues = new List<(TKey, KeyValuePair<long, int>)>();
+                        foreach (var item in DictionarySerializedLookup)
+                        {
+                            try
+                            {
+                                var value = this[item.Key];
+                            }
+                            catch
+                            {
+                                corruptedValues.Add((item.Key, item.Value));
+                                continue;
+                            }
+
+                            byte[] KeySerialized = _compressionHandler.SerializeNotCompressed(item.Key);
+                            byte[] len = BitConverter.GetBytes((UInt16)KeySerialized.Length);
+                            byte[] keyPosSerialized = new byte[12];
+                            Buffer.BlockCopy(BitConverter.GetBytes(item.Value.Key), 0, keyPosSerialized, 0, 8);
+                            Buffer.BlockCopy(BitConverter.GetBytes(item.Value.Value), 0, keyPosSerialized, 8, 4);
+
+                            // Calculate total length
+                            int totalLength = len.Length + KeySerialized.Length + keyPosSerialized.Length;
+                            byte[] allData = new byte[totalLength];
+
+                            // Copy all data into single array
+                            Buffer.BlockCopy(len, 0, allData, 0, len.Length);
+                            Buffer.BlockCopy(KeySerialized, 0, allData, len.Length, KeySerialized.Length);
+                            Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + KeySerialized.Length, keyPosSerialized.Length);
+
+                            // Write to file
+                            FileStream_Keys.Write(allData);
+                            FileStream_Keys.Flush();
+                        }
+
+                        //REMOVE ANY CORRUPTED VALUES
+                        foreach (var item in corruptedValues)
+                        {
+                            DictionarySerializedLookup.Remove(item.Item1);
+                        }
+                    }
+                    else
+                    {
+                        //CANNOT RECOVER
+                        FileStream.SetLength(0);
+                    }
+                }
+                else if (successLoad == false)
+                {
+                    FileStream.SetLength(0);
+                }
+            }
+        }
+
 
         public TValue this[TKey key]
         {

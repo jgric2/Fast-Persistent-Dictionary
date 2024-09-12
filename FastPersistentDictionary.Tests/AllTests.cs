@@ -40,8 +40,9 @@ namespace FastPersistentDictionary.Tests
 
                 var dictionary = new FastPersistentDictionary<int, string>(
                     path,
-                   // false,
+                    false,
                     updateRate,
+                    true,
                     percentageChangeBeforeCompact,
                     8196,
                     importSavedPersistentDictionaryPro,

@@ -49,6 +49,12 @@ namespace FastPersistentDictionary.Internals.Compression
             return serializer.Deserialize<TValue>(compressedData);
         }
 
+
+        public TKey DeserializeKey(byte[] compressedData)
+        {
+            return serializer.Deserialize<TKey>(compressedData);
+        }
+
         public byte[] SerializeCompressed<T>(T obj)
         {
             byte[] data = serializer.Serialize(obj);

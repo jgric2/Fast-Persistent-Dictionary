@@ -6,7 +6,7 @@ using FastPersistentDictionary.Internals.Compression;
 namespace FastPersistentDictionary.Internals.Accessor
 {
     [SuppressMessage("ReSharper", "MustUseReturnValue")]
-    public sealed class DictionaryAccessor<TKey, TValue> //: IDictionaryAccessor<TKey, TValue>
+    public sealed class DictionaryAccessor<TKey, TValue> : IDictionaryAccessor<TKey, TValue>
     {
         private readonly ICompressionHandler<TKey, TValue> _compressionHandler;
 

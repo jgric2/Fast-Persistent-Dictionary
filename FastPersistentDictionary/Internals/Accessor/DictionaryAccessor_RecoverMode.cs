@@ -15,27 +15,21 @@ namespace FastPersistentDictionary.Internals.Accessor
         internal FileStream FileStream;
 
         internal FileStream FileStream_Keys;
-        //internal StreamWriter StreamWriter_Keys;
 
         public DictionaryAccessor_RecoverMode(
             FastPersistentDictionary<TKey, TValue> dict,
             System.Timers.Timer updateTimer,
             ICompressionHandler<TKey, TValue> compressionHandler,
             object lockObj,
-            FileStream fileStream)
+            FileStream fileStream,
+            FileStream fileStream_Keys)
         {
             _lockObj = lockObj;
             FileStream = fileStream;
+            FileStream_Keys = fileStream_Keys;
             _persistentDictionaryPro = dict;
             _compressionHandler = compressionHandler;
             _updateTimer = updateTimer;
-
-            string location = Path.GetDirectoryName(fileStream.Name);
-            string Fname = Path.GetFileNameWithoutExtension(fileStream.Name);
-            string PathKeys = Path.Combine(location, Fname) + ".prec";
-
-            FileStream_Keys = new FileStream(PathKeys, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 8196, FileOptions.SequentialScan);
-            //StreamWriter_Keys = new StreamWriter(FileStream_Keys);
         }
 
         public IEqualityComparer<TKey> Comparer { get; set; }
@@ -104,6 +98,7 @@ namespace FastPersistentDictionary.Internals.Accessor
                 FileStream_Keys.Flush();
 
                 FileStream.Write(data, 0, data.Length);
+                FileStream.Flush();
             }
             _updateTimer.Start();
         }
@@ -139,6 +134,7 @@ namespace FastPersistentDictionary.Internals.Accessor
                 FileStream_Keys.Flush();
 
                 FileStream.Write(data, 0, data.Length);
+                FileStream.Flush();
             }
 
             _updateTimer.Start();
@@ -183,6 +179,7 @@ namespace FastPersistentDictionary.Internals.Accessor
                 FileStream_Keys.Flush();
 
                 FileStream.Write(data, 0, data.Length);
+                FileStream.Flush();
             }
 
             _updateTimer.Start();
@@ -238,6 +235,7 @@ namespace FastPersistentDictionary.Internals.Accessor
 
                     FileStream.Seek(lookupCoordinates.Key, SeekOrigin.Begin);
                     FileStream.Write(newData, 0, newData.Length);
+                    FileStream.Flush();
                 }
                 else
                 {
@@ -266,6 +264,7 @@ namespace FastPersistentDictionary.Internals.Accessor
 
                     FileStream.Seek(0, SeekOrigin.End);
                     FileStream.Write(newData, 0, newData.Length);
+                    FileStream.Flush();
 
                     _updateTimer.Start();
                 }
@@ -384,6 +383,7 @@ namespace FastPersistentDictionary.Internals.Accessor
                 FileStream.SetLength(0);
                 FileStream_Keys.SetLength(0);
                 FileStream_Keys.Flush();
+                FileStream.Flush();
                 foreach (var key in _persistentDictionaryPro.DictionarySerializedLookup.Keys)
                 {
                     var location = new KeyValuePair<long, int>(FileStream.Position, defaultValue.Length);
@@ -412,6 +412,7 @@ namespace FastPersistentDictionary.Internals.Accessor
 
                 }
                 FileStream_Keys.Flush();
+                FileStream.Flush();
             }
         }
 
@@ -484,6 +485,8 @@ namespace FastPersistentDictionary.Internals.Accessor
                 FileStream.SetLength(0);
                 FileStream_Keys.SetLength(0);
                 FileStream_Keys.Flush();
+                FileStream.Flush();
+
                 //FileStream.Seek(0, SeekOrigin.Begin);
             }
         }
@@ -553,6 +556,7 @@ namespace FastPersistentDictionary.Internals.Accessor
                     // Write to file
                     FileStream_Keys.Write(allData);
                     FileStream_Keys.Flush();
+                    FileStream.Flush();
                 }
             }
 

@@ -14,7 +14,7 @@ namespace FastPersistentDictionary.Internals
 
         public DictionaryOperations(
             FastPersistentDictionary<TKey, TValue> dict,
-            DictionaryAccessor<TKey, TValue> dictionaryAccessor,
+            IDictionaryAccessor<TKey, TValue> dictionaryAccessor,
             System.Timers.Timer updateTimer,
             ICompressionHandler<TKey, TValue> compressionHandler,
             object lockObj,
@@ -29,7 +29,7 @@ namespace FastPersistentDictionary.Internals
         }
 
         private readonly FastPersistentDictionary<TKey, TValue> _persistentDictionaryPro;
-        private readonly DictionaryAccessor<TKey, TValue> _dictionaryAccessor;
+        private readonly IDictionaryAccessor<TKey, TValue> _dictionaryAccessor;
 
         public IOrderedEnumerable<KeyValuePair<TKey, TValue>> OrderByDescending(Func<KeyValuePair<TKey, TValue>, object> selector)
         {
@@ -125,8 +125,9 @@ namespace FastPersistentDictionary.Internals
             {
                 var copiedDictionary = new FastPersistentDictionary<TKey, TValue>(
                     path,
-                    //_persistentDictionaryPro.CrashRecovery,
+                    _persistentDictionaryPro.CrashRecovery,
                     (int)_updateTimer.Interval,
+                    _persistentDictionaryPro.DeleteDBOnClose,
                     _persistentDictionaryPro.PercentageChangeBeforeCompact,
                     8196,
                     "",
@@ -393,7 +394,7 @@ namespace FastPersistentDictionary.Internals
         {
             lock (_lockObj)
             {
-                var result = new FastPersistentDictionary<TKey, Tuple<TValue, TSecond>>(_persistentDictionaryPro.FileLocation, (int)_updateTimer.Interval);
+                var result = new FastPersistentDictionary<TKey, Tuple<TValue, TSecond>>(_persistentDictionaryPro.FileLocation, _persistentDictionaryPro.CrashRecovery, (int)_updateTimer.Interval);
 
                 foreach (var key in _dictionaryAccessor.Keys)
                     if (second.DictionaryAccessor.TryGetValue(key, out var secondValue))

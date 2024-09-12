@@ -1,4 +1,6 @@
-﻿namespace FastPersistentDictionary.Internals.Compression
+﻿using GroBuf;
+
+namespace FastPersistentDictionary.Internals.Compression
 {
     public interface ICompressionHandler<TKey, TValue>
     {
@@ -16,6 +18,11 @@
         public byte[] SerializeNotCompressed<T>(T obj);
         public TValue DeserializeNotCompressed(byte[] compressedData);
         public TValue DeserializeNotCompressed<TValue>(byte[] compressedData);
+
+
+        public TKey DeserializeKey(byte[] compressedData);
+    
+
 
 
         public byte[] SerializeCompressed<T>(T obj);

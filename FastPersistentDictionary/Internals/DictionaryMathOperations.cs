@@ -11,7 +11,7 @@ namespace FastPersistentDictionary.Internals
 
         public DictionaryMathOperations(
             FastPersistentDictionary<TKey, TValue> dict,
-            DictionaryAccessor<TKey, TValue> dictionaryAccessor,
+            IDictionaryAccessor<TKey, TValue> dictionaryAccessor,
             DictionaryOperations<TKey, TValue> dictionaryOperations,
             ICompressionHandler<TKey, TValue> compressionHandler,
             object lockObj,
@@ -26,7 +26,7 @@ namespace FastPersistentDictionary.Internals
         }
 
         private readonly FastPersistentDictionary<TKey, TValue> _persistentDictionaryPro;
-        private readonly DictionaryAccessor<TKey, TValue> _dictionaryAccessor;
+        private readonly IDictionaryAccessor<TKey, TValue> _dictionaryAccessor;
         private readonly DictionaryOperations<TKey, TValue> _dictionaryOperations;
 
         public TValue Min()

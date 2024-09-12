@@ -7,13 +7,13 @@ namespace FastPersistentDictionary.Internals
     public sealed class DictionaryObject<TKey, TValue> : IEnumerable
     {
         private readonly object _lockObj;
-        public DictionaryObject(DictionaryAccessor<TKey, TValue> dictionaryAccessor, object lockObj)
+        public DictionaryObject(IDictionaryAccessor<TKey, TValue> dictionaryAccessor, object lockObj)
         {
             _dictionaryAccessor = dictionaryAccessor;
             _lockObj = lockObj;
         }
 
-        private readonly DictionaryAccessor<TKey, TValue> _dictionaryAccessor;
+        private readonly IDictionaryAccessor<TKey, TValue> _dictionaryAccessor;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         IEnumerator IEnumerable.GetEnumerator()

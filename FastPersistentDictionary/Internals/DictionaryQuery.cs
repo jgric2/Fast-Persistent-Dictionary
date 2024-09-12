@@ -22,7 +22,7 @@ namespace FastPersistentDictionary.Internals
         internal FileStream FileStream;
         public DictionaryQuery(
             FastPersistentDictionary<TKey, TValue> dict,
-            DictionaryAccessor<TKey, TValue> dictionaryAccessor,
+            IDictionaryAccessor<TKey, TValue> dictionaryAccessor,
             Timer updateTimer,
             ICompressionHandler<TKey, TValue> compressionHandler,
             float percentageDiffBeforeCompact,
@@ -47,7 +47,7 @@ namespace FastPersistentDictionary.Internals
         }
 
         private readonly FastPersistentDictionary<TKey, TValue> _fastPersistentDictionary;
-        private readonly DictionaryAccessor<TKey, TValue> _dictionaryAccessor;
+        private readonly IDictionaryAccessor<TKey, TValue> _dictionaryAccessor;
 
         private void UpdateCompactTimerElapsedEventHandler(object sender, ElapsedEventArgs e)
         {

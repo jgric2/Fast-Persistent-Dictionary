@@ -6,6 +6,7 @@ namespace FastPersistentDictionary.Benchmark
     public class Benchmarks
     {
         private FastPersistentDictionary<string, string> fastPersistentDictionary;
+        private FastPersistentDictionary<string, string> fastPersistentDictionaryRecover;
         private Dictionary<string, string> standardDictionary;
         private PersistentDictionary<string, string> esentPersistentDictionary;
 
@@ -17,17 +18,22 @@ namespace FastPersistentDictionary.Benchmark
         {
             string directoryEsent = "C:\\Users\\Admin\\Documents\\Copiers\\New folder\\Esent";
             string fastPersistentDictionary = "C:\\Users\\Admin\\Documents\\Copiers\\New folder\\dict.tt";
+            string fastPersistentDictionaryRec = "C:\\Users\\Admin\\Documents\\Copiers\\New folder\\dictRec.tt";
 
             this.fastPersistentDictionary = new FastPersistentDictionary<string, string>(path: fastPersistentDictionary);
+            this.fastPersistentDictionaryRecover = new FastPersistentDictionary<string, string>(path: fastPersistentDictionaryRec, crashRecovery: true);
             standardDictionary = new Dictionary<string, string>();
             esentPersistentDictionary = new PersistentDictionary<string, string>(directoryEsent);
             esentPersistentDictionary.Clear();
+            this.fastPersistentDictionary.Clear();
+            this.fastPersistentDictionaryRecover.Clear();
 
             for (int i = 0; i < N; i++)
             {
                 string key = $"Key{i}";
                 string value = $"Value{i} {longSentences[i % longSentences.Length]}";
                 this.fastPersistentDictionary.Add(key, value);
+                this.fastPersistentDictionaryRecover.Add(key, value);
                 standardDictionary.Add(key, value);
                 esentPersistentDictionary.Add(key, value);
             }
@@ -37,6 +43,12 @@ namespace FastPersistentDictionary.Benchmark
         public void IterationSetupForAddPersistent()
         {
             fastPersistentDictionary.Clear();
+        }
+
+        [IterationSetup(Target = nameof(FastPersistentDictionaryRecover_Add))]
+        public void IterationSetupForAddPersistentRecover()
+        {
+            fastPersistentDictionaryRecover.Clear();
         }
 
         [IterationSetup(Target = nameof(StandardDictionary_Add))]
@@ -60,6 +72,18 @@ namespace FastPersistentDictionary.Benchmark
                 string key = $"Key{i}";
                 string value = $"Value{i} {longSentences[i % longSentences.Length]}";
                 fastPersistentDictionary.Add(key, value);
+            }
+        }
+
+        [IterationSetup(Targets = new[] { nameof(FastPersistentDictionaryRecover_Get), nameof(FastPersistentDictionaryRecover_Remove) })]
+        public void IterationSetupForGetOrRemovePersistentRecover()
+        {
+            fastPersistentDictionaryRecover.Clear();
+            for (int i = 0; i < N; i++)
+            {
+                string key = $"Key{i}";
+                string value = $"Value{i} {longSentences[i % longSentences.Length]}";
+                fastPersistentDictionaryRecover.Add(key, value);
             }
         }
 
@@ -99,6 +123,17 @@ namespace FastPersistentDictionary.Benchmark
         }
 
         [Benchmark]
+        public void FastPersistentDictionaryRecover_Add()
+        {
+            for (int i = 0; i < N; i++)
+            {
+                string key = $"Key{i}";
+                string value = $"Value{i} {longSentences[i % longSentences.Length]}";
+                fastPersistentDictionaryRecover.Add(key, value);
+            }
+        }
+
+        [Benchmark]
         public void StandardDictionary_Add()
         {
             for (int i = 0; i < N; i++)
@@ -131,6 +166,16 @@ namespace FastPersistentDictionary.Benchmark
         }
 
         [Benchmark]
+        public void FastPersistentDictionaryRecover_Get()
+        {
+            for (int i = 0; i < N; i++)
+            {
+                string key = $"Key{i}";
+                string value = fastPersistentDictionaryRecover[key];
+            }
+        }
+
+        [Benchmark]
         public void StandardDictionary_Get()
         {
             for (int i = 0; i < N; i++)
@@ -157,6 +202,16 @@ namespace FastPersistentDictionary.Benchmark
             {
                 string key = $"Key{i}";
                 fastPersistentDictionary.Remove(key);
+            }
+        }
+
+        [Benchmark]
+        public void FastPersistentDictionaryRecover_Remove()
+        {
+            for (int i = 0; i < N; i++)
+            {
+                string key = $"Key{i}";
+                fastPersistentDictionaryRecover.Remove(key);
             }
         }
 
