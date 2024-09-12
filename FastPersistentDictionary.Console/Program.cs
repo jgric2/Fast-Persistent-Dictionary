@@ -7,7 +7,7 @@ internal class Program
     {
         string strValueTest = "Star Wars (later retitled Star Wars: Episode IV – A New Hope) is a 1977 American epic space opera film written and directed by George Lucas.";
         string pathMain = Path.Combine(System.Environment.CurrentDirectory, "data.tt");
-        var fastPersistentDictionary = new FastPersistentDictionary<string, string>(path: pathMain, crashRecovery: true);
+        var fastPersistentDictionary = new FastPersistentDictionary<string, string>(path: pathMain, crashRecovery: false);
         //path: pathMain,
         Stopwatch stopwatch = new Stopwatch();
         stopwatch.Start();
@@ -22,19 +22,6 @@ internal class Program
 
 
         }
-
-
-        foreach (var key in fastPersistentDictionary)
-        {
-            Debug.WriteLine(key.Key + " : " + key.Value);
-        }
-
-
-        fastPersistentDictionary.Add("fff_", strValueTest);
-
-        fastPersistentDictionary.Add("fff1_", strValueTest);
-
-        fastPersistentDictionary.Add("name_0" , strValueTest); //force error
 
 
         for (int i = 0; i < 100; i++)
