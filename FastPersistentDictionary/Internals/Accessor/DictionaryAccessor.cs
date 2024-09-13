@@ -1,6 +1,11 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
+using System.Security.Cryptography;
+using System.Text;
 using FastPersistentDictionary.Internals.Compression;
 
 namespace FastPersistentDictionary.Internals.Accessor
@@ -14,7 +19,7 @@ namespace FastPersistentDictionary.Internals.Accessor
         private readonly FastPersistentDictionary<TKey, TValue> _fastPersistentDictionary;
         private readonly System.Timers.Timer _updateTimer;
         internal FileStream FileStream;
-
+        private readonly SHA256 sha256Hash;
         public DictionaryAccessor(
             FastPersistentDictionary<TKey, TValue> dict,
             System.Timers.Timer updateTimer,
@@ -27,6 +32,12 @@ namespace FastPersistentDictionary.Internals.Accessor
             _fastPersistentDictionary = dict;
             _compressionHandler = compressionHandler;
             _updateTimer = updateTimer;
+            sha256Hash = SHA256.Create();
+        }
+
+        ~DictionaryAccessor()
+        {
+            sha256Hash?.Dispose();
         }
 
         public IEqualityComparer<TKey> Comparer { get; set; }
@@ -69,17 +80,42 @@ namespace FastPersistentDictionary.Internals.Accessor
 
 
                 var data = _compressionHandler.Serialize(value);
+                var valueHash = ComputeHash(data);
+                if (_fastPersistentDictionary.DictionarySerializedLookupValuesHashed.ContainsKey(valueHash))
+                {
+                    _fastPersistentDictionary.DictionarySerializedLookup[key] = _fastPersistentDictionary.DictionarySerializedLookupValuesHashed[valueHash];
+                }
+                else
+                {
 
-                if (FileStream.Position != FileStream.Length)
-                    FileStream.Seek(0, SeekOrigin.End);
+                    var kvp = new KeyValuePair<long, int>(FileStream.Position, data.Length);
+                    _fastPersistentDictionary.DictionarySerializedLookup[key] = kvp;
 
-                _fastPersistentDictionary.DictionarySerializedLookup[key] = new KeyValuePair<long, int>(FileStream.Position, data.Length);
-                FileStream.Write(data, 0, data.Length);
+                    _fastPersistentDictionary.DictionarySerializedLookupValuesHashed[valueHash] = kvp;
+
+                    if (FileStream.Position != FileStream.Length)
+                        FileStream.Seek(0, SeekOrigin.End);
+
+                    FileStream.Write(data, 0, data.Length);
+                }
+
+                
             }
             _updateTimer.Stop();
             _updateTimer.Start();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private string ComputeHash(byte[] data)
+        {
+            return MemoryMarshal.Cast<byte, char>(sha256Hash.ComputeHash(data)).ToString();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private string ComputeHash(string data)
+        {
+            return MemoryMarshal.Cast<byte, char>(sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(data)).AsSpan()).ToString();
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Set(TKey key, TValue value)
@@ -87,10 +123,22 @@ namespace FastPersistentDictionary.Internals.Accessor
             var data = _compressionHandler.Serialize(value);
             lock (_lockObj)
             {
-                FileStream.Seek(0, SeekOrigin.End);
-                var kvpLookup = new KeyValuePair<long, int>(FileStream.Position, data.Length);
-                _fastPersistentDictionary.DictionarySerializedLookup[key] = kvpLookup;
-                FileStream.Write(data, 0, data.Length);
+                var valueHash = ComputeHash(data);
+                if (_fastPersistentDictionary.DictionarySerializedLookupValuesHashed.ContainsKey(valueHash))
+                {
+                    _fastPersistentDictionary.DictionarySerializedLookup[key] = _fastPersistentDictionary.DictionarySerializedLookupValuesHashed[valueHash];
+                }
+                else
+                {
+                    FileStream.Seek(0, SeekOrigin.End);
+                    var kvpLookup = new KeyValuePair<long, int>(FileStream.Position, data.Length);
+                    _fastPersistentDictionary.DictionarySerializedLookup[key] = kvpLookup;
+                    _fastPersistentDictionary.DictionarySerializedLookupValuesHashed[valueHash] = kvpLookup;
+                    FileStream.Write(data, 0, data.Length);
+                }
+
+
+               
             }
 
             _updateTimer.Stop();

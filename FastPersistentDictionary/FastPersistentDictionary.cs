@@ -30,12 +30,15 @@ namespace FastPersistentDictionary
         ISerializable, IDisposable
     {
         internal Dictionary<TKey, KeyValuePair<long, int>> DictionarySerializedLookup = new Dictionary<TKey, KeyValuePair<long, int>>();
+        internal Dictionary<string, KeyValuePair<long, int>> DictionarySerializedLookupValuesHashed = new Dictionary<string, KeyValuePair<long, int>>();
+
 
         private readonly DictionaryIo<TKey, TValue> _dictionaryIo;
         private readonly DictionaryMathOperations<TKey, TValue> _dictionaryMathOperations;
         private readonly DictionaryObject<TKey, TValue> _dictionaryObject;
         private readonly DictionaryOperations<TKey, TValue> _dictionaryOperations;
         private readonly DictionaryQuery<TKey, TValue> _dictionaryQuery;
+
 
 
         public bool CanCompact = false;

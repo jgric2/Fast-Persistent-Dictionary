@@ -24,6 +24,7 @@ namespace FastPersistentDictionary.Internals
             object lockObj,
             FileStream fileStream,
             Serializer serializer,
+
             bool useCompression)
         {
             FileStream = fileStream;

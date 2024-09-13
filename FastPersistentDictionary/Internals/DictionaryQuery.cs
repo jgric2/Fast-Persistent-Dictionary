@@ -1,7 +1,10 @@
 ﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Timers;
 using FastPersistentDictionary.Internals.Accessor;
 using FastPersistentDictionary.Internals.Compression;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 using Timer = System.Timers.Timer;
 
 namespace FastPersistentDictionary.Internals
@@ -17,8 +20,8 @@ namespace FastPersistentDictionary.Internals
         private readonly float _percentageDiffBeforeCompact;
         public long LastFileSizeCompact { get; set; }
         public long NextFileSizeCompact { get; set; }
-      //  private bool _canCompact;
-
+        //  private bool _canCompact;
+        private readonly SHA256 sha256Hash;
         internal FileStream FileStream;
         public DictionaryQuery(
             FastPersistentDictionary<TKey, TValue> dict,
@@ -38,7 +41,7 @@ namespace FastPersistentDictionary.Internals
             _percentageDiffBeforeCompact = percentageDiffBeforeCompact;
             LastFileSizeCompact = fileStream.Length;
 
-
+            sha256Hash = SHA256.Create();
             NextFileSizeCompact = LastFileSizeCompact + (long)(LastFileSizeCompact * (_percentageDiffBeforeCompact / 100f));
 
             _idleCompactTimer = new Timer(IdleCompactTime + _updateTimer.Interval);
@@ -48,6 +51,12 @@ namespace FastPersistentDictionary.Internals
 
         private readonly FastPersistentDictionary<TKey, TValue> _fastPersistentDictionary;
         private readonly IDictionaryAccessor<TKey, TValue> _dictionaryAccessor;
+
+        ~DictionaryQuery()
+        {
+            // Dispose of the SHA256 object when the Hasher object is finalized.
+            sha256Hash?.Dispose();
+        }
 
         private void UpdateCompactTimerElapsedEventHandler(object sender, ElapsedEventArgs e)
         {
@@ -150,6 +159,13 @@ namespace FastPersistentDictionary.Internals
         //    Console.WriteLine(stpw.ElapsedMilliseconds);
         //}
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private string ComputeHash(byte[] data)
+        {
+            return MemoryMarshal.Cast<byte, char>(sha256Hash.ComputeHash(data)).ToString();
+        }
+
+  
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void CompactDatabaseFile()
@@ -167,6 +183,8 @@ namespace FastPersistentDictionary.Internals
                 {
                     Span<byte> buffer = new Span<byte>();
 
+                     Dictionary<string, KeyValuePair<long, int>> tempDictSerializedLookupValuesHashed = new Dictionary<string, KeyValuePair<long, int>>();
+
                     var tempDict = new Dictionary<TKey, KeyValuePair<long, int>>(_fastPersistentDictionary.DictionarySerializedLookup.Count);
                     foreach (var kvp in _fastPersistentDictionary.DictionarySerializedLookup)
                     {
@@ -177,8 +195,45 @@ namespace FastPersistentDictionary.Internals
 
 
                         var bytesRead = FileStream.Read(buffer);
-                        tempFileStream.Write(buffer);
-                        tempDict[kvp.Key] = new KeyValuePair<long, int>(tempFileStream.Position - kvp.Value.Value, kvp.Value.Value);
+                        //HASH VALUE, CHECK IF EXISTS
+                        var valueHash = ComputeHash(buffer.ToArray());
+
+                        if (tempDictSerializedLookupValuesHashed.ContainsKey(valueHash))
+                        {
+                            tempDict[kvp.Key] = tempDictSerializedLookupValuesHashed[valueHash];
+                        }
+                        else
+                        {
+
+                            tempFileStream.Write(buffer);
+                            var kvpTemp = new KeyValuePair<long, int>(tempFileStream.Position - kvp.Value.Value, kvp.Value.Value);
+                            tempDict[kvp.Key] = kvpTemp;
+                            tempDictSerializedLookupValuesHashed[valueHash] = kvpTemp;
+                        }
+
+                            //////if (_fastPersistentDictionary.DictionarySerializedLookupValuesHashed.ContainsKey(valueHash))
+                            //////{
+                            //////    _fastPersistentDictionary.DictionarySerializedLookup[key] = _fastPersistentDictionary.DictionarySerializedLookupValuesHashed[valueHash];
+                            //////}
+                            //////else
+                            //////{
+
+                            //////    var kvp = new KeyValuePair<long, int>(FileStream.Position, data.Length);
+                            //////    _fastPersistentDictionary.DictionarySerializedLookup[key] = kvp;
+
+                            //////    _fastPersistentDictionary.DictionarySerializedLookupValuesHashed[valueHash] = kvp;
+
+                            //////    if (FileStream.Position != FileStream.Length)
+                            //////        FileStream.Seek(0, SeekOrigin.End);
+
+                            //////    FileStream.Write(data, 0, data.Length);
+                            //////}
+
+
+
+
+                        //    tempFileStream.Write(buffer);
+                        //tempDict[kvp.Key] = new KeyValuePair<long, int>(tempFileStream.Position - kvp.Value.Value, kvp.Value.Value);
                     }
 
                     // Replace the old dictionary with the updated one
