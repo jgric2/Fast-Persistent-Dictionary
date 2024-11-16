@@ -11,8 +11,6 @@ The dictionary comes with a plethora of features and methods, giving the develop
 
 This dictionary makes use of the .NET `IEnumerable` and `ISerializable` interfaces, allowing it to be used in various scenarios where these interfaces are required, for example, in .NET collections or serialization operations.
 
-High frequency updates are managed via a timer which triggers a background thread at a regular interval defined by the user. This enhances the dictionary's performance by offloading tasks that do not need to happen immediately, such as writing to disk. 
-
 The project also provides exception handling and recovery features. A dispose mechanism is incorporated ensuring that all resources are released when the instance is no longer required, enhancing the project’s stability and resilience.
 
 Fast Persistent Dictionary is an open-source project crafted with care, providing a robust and efficient persistent dictionary in C#. It's an invaluable tool when building applications requiring efficient, reliable, and persistent data storage.
