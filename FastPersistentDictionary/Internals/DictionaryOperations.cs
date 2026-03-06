@@ -225,7 +225,7 @@ namespace FastPersistentDictionary.Internals
         {
             lock (_lockObj)
             {
-                var invertedDictionary = new FastPersistentDictionary<TValue, TKey>(_persistentDictionaryPro.FileLocation);
+                var invertedDictionary = new FastPersistentDictionary<TValue, TKey>();
 
                 var valuesSet = new HashSet<TValue>(_persistentDictionaryPro.Values);
 
@@ -317,7 +317,7 @@ namespace FastPersistentDictionary.Internals
             lock (_lockObj)
             {
                 var intersection =
-                    new FastPersistentDictionary<TKey, TValue>(_persistentDictionaryPro.FileLocation);
+                    new FastPersistentDictionary<TKey, TValue>();
 
                 foreach (var pair in _dictionaryAccessor)
                     if (other.DictionaryAccessor.ContainsKey(pair.Key))
@@ -332,7 +332,7 @@ namespace FastPersistentDictionary.Internals
             lock (_lockObj)
             {
                 var unionDictionary =
-                    new FastPersistentDictionary<TKey, TValue>(_persistentDictionaryPro.FileLocation);
+                    new FastPersistentDictionary<TKey, TValue>();
 
 
                 foreach (var kvp in _persistentDictionaryPro.DictionarySerializedLookup.Keys)
@@ -394,7 +394,7 @@ namespace FastPersistentDictionary.Internals
         {
             lock (_lockObj)
             {
-                var result = new FastPersistentDictionary<TKey, Tuple<TValue, TSecond>>(_persistentDictionaryPro.FileLocation, _persistentDictionaryPro.CrashRecovery, (int)_updateTimer.Interval);
+                var result = new FastPersistentDictionary<TKey, Tuple<TValue, TSecond>>(crashRecovery: _persistentDictionaryPro.CrashRecovery, updateRate: (int)_updateTimer.Interval);
 
                 foreach (var key in _dictionaryAccessor.Keys)
                     if (second.DictionaryAccessor.TryGetValue(key, out var secondValue))

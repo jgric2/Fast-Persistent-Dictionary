@@ -270,7 +270,7 @@ namespace FastPersistentDictionary.Internals
         {
             lock (_lockObj)
             {
-                var result = new FastPersistentDictionary<TKey, TValue>(_fastPersistentDictionary.FileLocation, equalityComparer: _fastPersistentDictionary.Comparer);
+                var result = new FastPersistentDictionary<TKey, TValue>(equalityComparer: _fastPersistentDictionary.Comparer);
                 foreach (var kvp in _fastPersistentDictionary)
                     if (predicate(kvp.Key, kvp.Value))
                         result.Add(kvp.Key, kvp.Value);
@@ -360,7 +360,7 @@ namespace FastPersistentDictionary.Internals
         {
             lock (_lockObj)
             {
-                var newDict = new FastPersistentDictionary<TKey, TValue>(_fastPersistentDictionary.FileLocation);
+                var newDict = new FastPersistentDictionary<TKey, TValue>();
                 foreach (var kvp in _fastPersistentDictionary)
                 {
                     if (predicate(kvp.Key, kvp.Value))
@@ -380,7 +380,7 @@ namespace FastPersistentDictionary.Internals
         {
             lock (_lockObj)
             {
-                var newDict = new FastPersistentDictionary<TKey, TValue>(_fastPersistentDictionary.FileLocation);
+                var newDict = new FastPersistentDictionary<TKey, TValue>();
 
                 foreach (var key in keys)
                     if (_fastPersistentDictionary.ContainsKey(key))
