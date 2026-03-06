@@ -75,8 +75,12 @@ namespace FastPersistentDictionary.Internals.Accessor
 
                 FileStream.Seek(0, SeekOrigin.End);
                 var kvpPair = new KeyValuePair<long, int>(FileStream.Position, data.Length);
-                _persistentDictionaryPro.DictionarySerializedLookup[key] = kvpPair;
 
+                // Write value data first to ensure it exists before the key entry references it
+                FileStream.Write(data, 0, data.Length);
+                FileStream.Flush();
+
+                _persistentDictionaryPro.DictionarySerializedLookup[key] = kvpPair;
 
                 byte[] KeySerialized = _compressionHandler.SerializeNotCompressed(key);
                 byte[] len = BitConverter.GetBytes((UInt16)KeySerialized.Length);
@@ -84,21 +88,15 @@ namespace FastPersistentDictionary.Internals.Accessor
                 Buffer.BlockCopy(BitConverter.GetBytes(kvpPair.Key), 0, keyPosSerialized, 0, 8);
                 Buffer.BlockCopy(BitConverter.GetBytes(kvpPair.Value), 0, keyPosSerialized, 8, 4);
 
-                // Calculate total length
                 int totalLength = len.Length + KeySerialized.Length + keyPosSerialized.Length;
                 byte[] allData = new byte[totalLength];
 
-                // Copy all data into single array
                 Buffer.BlockCopy(len, 0, allData, 0, len.Length);
                 Buffer.BlockCopy(KeySerialized, 0, allData, len.Length, KeySerialized.Length);
                 Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + KeySerialized.Length, keyPosSerialized.Length);
 
-                // Write to file
                 FileStream_Keys.Write(allData);
                 FileStream_Keys.Flush();
-
-                FileStream.Write(data, 0, data.Length);
-                FileStream.Flush();
             }
             _updateTimer.Start();
         }
@@ -112,6 +110,11 @@ namespace FastPersistentDictionary.Internals.Accessor
             {
                 FileStream.Seek(0, SeekOrigin.End);
                 var kvpLookup = new KeyValuePair<long, int>(FileStream.Position, data.Length);
+
+                // Write value data first to ensure it exists before the key entry references it
+                FileStream.Write(data, 0, data.Length);
+                FileStream.Flush();
+
                 _persistentDictionaryPro.DictionarySerializedLookup[key] = kvpLookup;
 
                 byte[] KeySerialized = _compressionHandler.SerializeNotCompressed(key);
@@ -120,21 +123,15 @@ namespace FastPersistentDictionary.Internals.Accessor
                 Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Key), 0, keyPosSerialized, 0, 8);
                 Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Value), 0, keyPosSerialized, 8, 4);
 
-                // Calculate total length
                 int totalLength = len.Length + KeySerialized.Length + keyPosSerialized.Length;
                 byte[] allData = new byte[totalLength];
 
-                // Copy all data into single array
                 Buffer.BlockCopy(len, 0, allData, 0, len.Length);
                 Buffer.BlockCopy(KeySerialized, 0, allData, len.Length, KeySerialized.Length);
                 Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + KeySerialized.Length, keyPosSerialized.Length);
 
-                // Write to file
                 FileStream_Keys.Write(allData);
                 FileStream_Keys.Flush();
-
-                FileStream.Write(data, 0, data.Length);
-                FileStream.Flush();
             }
 
             _updateTimer.Start();
@@ -148,15 +145,19 @@ namespace FastPersistentDictionary.Internals.Accessor
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AddOrUpdate(TKey key, TValue value)
         {
-            lock (_lockObj)
-                if (_persistentDictionaryPro.DictionarySerializedLookup.ContainsKey(key))
-                    _persistentDictionaryPro.DictionarySerializedLookup.Remove(key);
-
             var data = _compressionHandler.Serialize(value);
             lock (_lockObj)
             {
+                if (_persistentDictionaryPro.DictionarySerializedLookup.ContainsKey(key))
+                    _persistentDictionaryPro.DictionarySerializedLookup.Remove(key);
+
                 FileStream.Seek(0, SeekOrigin.End);
                 var kvpLookup = new KeyValuePair<long, int>(FileStream.Position, data.Length);
+
+                // Write value data first to ensure it exists before the key entry references it
+                FileStream.Write(data, 0, data.Length);
+                FileStream.Flush();
+
                 _persistentDictionaryPro.DictionarySerializedLookup[key] = kvpLookup;
 
                 byte[] KeySerialized = _compressionHandler.SerializeNotCompressed(key);
@@ -165,21 +166,15 @@ namespace FastPersistentDictionary.Internals.Accessor
                 Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Key), 0, keyPosSerialized, 0, 8);
                 Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Value), 0, keyPosSerialized, 8, 4);
 
-                // Calculate total length
                 int totalLength = len.Length + KeySerialized.Length + keyPosSerialized.Length;
                 byte[] allData = new byte[totalLength];
 
-                // Copy all data into single array
                 Buffer.BlockCopy(len, 0, allData, 0, len.Length);
                 Buffer.BlockCopy(KeySerialized, 0, allData, len.Length, KeySerialized.Length);
                 Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + KeySerialized.Length, keyPosSerialized.Length);
 
-                // Write to file
                 FileStream_Keys.Write(allData);
                 FileStream_Keys.Flush();
-
-                FileStream.Write(data, 0, data.Length);
-                FileStream.Flush();
             }
 
             _updateTimer.Start();
@@ -210,37 +205,13 @@ namespace FastPersistentDictionary.Internals.Accessor
 
                 if (newData.Length <= data.Length)
                 {
-                  
                     var kvpLookup = new KeyValuePair<long, int>(lookupCoordinates.Key, newData.Length);
-                    _persistentDictionaryPro.DictionarySerializedLookup[key] = kvpLookup;
 
-                    byte[] KeySerialized = _compressionHandler.SerializeNotCompressed(key);
-                    byte[] len = BitConverter.GetBytes((UInt16)KeySerialized.Length);
-                    byte[] keyPosSerialized = new byte[12];
-                    Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Key), 0, keyPosSerialized, 0, 8);
-                    Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Value), 0, keyPosSerialized, 8, 4);
-
-                    // Calculate total length
-                    int totalLength = len.Length + KeySerialized.Length + keyPosSerialized.Length;
-                    byte[] allData = new byte[totalLength];
-
-                    // Copy all data into single array
-                    Buffer.BlockCopy(len, 0, allData, 0, len.Length);
-                    Buffer.BlockCopy(KeySerialized, 0, allData, len.Length, KeySerialized.Length);
-                    Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + KeySerialized.Length, keyPosSerialized.Length);
-
-                    // Write to file
-                    FileStream_Keys.Write(allData);
-                    FileStream_Keys.Flush();
-
+                    // Write value data first
                     FileStream.Seek(lookupCoordinates.Key, SeekOrigin.Begin);
                     FileStream.Write(newData, 0, newData.Length);
                     FileStream.Flush();
-                }
-                else
-                {
-                  
-                    var kvpLookup = new KeyValuePair<long, int>(FileStream.Position, newData.Length);
+
                     _persistentDictionaryPro.DictionarySerializedLookup[key] = kvpLookup;
 
                     byte[] KeySerialized = _compressionHandler.SerializeNotCompressed(key);
@@ -249,22 +220,42 @@ namespace FastPersistentDictionary.Internals.Accessor
                     Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Key), 0, keyPosSerialized, 0, 8);
                     Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Value), 0, keyPosSerialized, 8, 4);
 
-                    // Calculate total length
                     int totalLength = len.Length + KeySerialized.Length + keyPosSerialized.Length;
                     byte[] allData = new byte[totalLength];
 
-                    // Copy all data into single array
                     Buffer.BlockCopy(len, 0, allData, 0, len.Length);
                     Buffer.BlockCopy(KeySerialized, 0, allData, len.Length, KeySerialized.Length);
                     Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + KeySerialized.Length, keyPosSerialized.Length);
 
-                    // Write to file
                     FileStream_Keys.Write(allData);
                     FileStream_Keys.Flush();
-
+                }
+                else
+                {
                     FileStream.Seek(0, SeekOrigin.End);
+                    var kvpLookup = new KeyValuePair<long, int>(FileStream.Position, newData.Length);
+
+                    // Write value data first
                     FileStream.Write(newData, 0, newData.Length);
                     FileStream.Flush();
+
+                    _persistentDictionaryPro.DictionarySerializedLookup[key] = kvpLookup;
+
+                    byte[] KeySerialized = _compressionHandler.SerializeNotCompressed(key);
+                    byte[] len = BitConverter.GetBytes((UInt16)KeySerialized.Length);
+                    byte[] keyPosSerialized = new byte[12];
+                    Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Key), 0, keyPosSerialized, 0, 8);
+                    Buffer.BlockCopy(BitConverter.GetBytes(kvpLookup.Value), 0, keyPosSerialized, 8, 4);
+
+                    int totalLength = len.Length + KeySerialized.Length + keyPosSerialized.Length;
+                    byte[] allData = new byte[totalLength];
+
+                    Buffer.BlockCopy(len, 0, allData, 0, len.Length);
+                    Buffer.BlockCopy(KeySerialized, 0, allData, len.Length, KeySerialized.Length);
+                    Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + KeySerialized.Length, keyPosSerialized.Length);
+
+                    FileStream_Keys.Write(allData);
+                    FileStream_Keys.Flush();
 
                     _updateTimer.Start();
                 }
@@ -523,41 +514,32 @@ namespace FastPersistentDictionary.Internals.Accessor
         {
             lock (_lockObj)
             {
-                //var tempKey = _persistentDictionaryPro.DictionarySerializedLookup[key];
-
-
-                var removedFromLookup = _persistentDictionaryPro.DictionarySerializedLookup.Remove(key);
-
-
-
-
-                if (removedFromLookup == false)
+                if (_persistentDictionaryPro.DictionarySerializedLookup.ContainsKey(key) == false)
                     return false;
-                else
-                {
-                    byte[] KeySerialized = _compressionHandler.SerializeNotCompressed(key);
-                    byte[] len = BitConverter.GetBytes((UInt16)KeySerialized.Length);
 
-                    byte[] keyPosSerialized = new byte[12];
-                    var tempKey = new KeyValuePair<long, int>(-1,-1);
+                // Write deletion marker to recovery file first, before removing from memory.
+                // If we crash after the marker but before the memory removal, recovery will
+                // correctly treat the key as deleted.
+                byte[] KeySerialized = _compressionHandler.SerializeNotCompressed(key);
+                byte[] len = BitConverter.GetBytes((UInt16)KeySerialized.Length);
 
-                    Buffer.BlockCopy(BitConverter.GetBytes(tempKey.Key), 0, keyPosSerialized, 0, 8);
-                    Buffer.BlockCopy(BitConverter.GetBytes(tempKey.Value), 0, keyPosSerialized, 8, 4);
+                byte[] keyPosSerialized = new byte[12];
+                var tempKey = new KeyValuePair<long, int>(-1, -1);
 
-                    // Calculate total length
-                    int totalLength = len.Length + KeySerialized.Length + keyPosSerialized.Length;
-                    byte[] allData = new byte[totalLength];
+                Buffer.BlockCopy(BitConverter.GetBytes(tempKey.Key), 0, keyPosSerialized, 0, 8);
+                Buffer.BlockCopy(BitConverter.GetBytes(tempKey.Value), 0, keyPosSerialized, 8, 4);
 
-                    // Copy all data into single array
-                    Buffer.BlockCopy(len, 0, allData, 0, len.Length);
-                    Buffer.BlockCopy(KeySerialized, 0, allData, len.Length, KeySerialized.Length);
-                    Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + KeySerialized.Length, keyPosSerialized.Length);
+                int totalLength = len.Length + KeySerialized.Length + keyPosSerialized.Length;
+                byte[] allData = new byte[totalLength];
 
-                    // Write to file
-                    FileStream_Keys.Write(allData);
-                    FileStream_Keys.Flush();
-                    FileStream.Flush();
-                }
+                Buffer.BlockCopy(len, 0, allData, 0, len.Length);
+                Buffer.BlockCopy(KeySerialized, 0, allData, len.Length, KeySerialized.Length);
+                Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + KeySerialized.Length, keyPosSerialized.Length);
+
+                FileStream_Keys.Write(allData);
+                FileStream_Keys.Flush();
+
+                _persistentDictionaryPro.DictionarySerializedLookup.Remove(key);
             }
 
             _updateTimer.Start();

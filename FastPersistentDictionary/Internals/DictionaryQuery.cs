@@ -192,13 +192,31 @@ namespace FastPersistentDictionary.Internals
                     LastFileSizeCompact = FileStream.Length;
                     NextFileSizeCompact = LastFileSizeCompact + (long)(LastFileSizeCompact * (_percentageDiffBeforeCompact / 100f));
                 }
+
+                // Rewrite recovery file with updated offsets after compaction
+                if (_fastPersistentDictionary.CrashRecovery && _fastPersistentDictionary.FileStream_Keys != null)
+                {
+                    _fastPersistentDictionary.FileStream_Keys.SetLength(0);
+                    foreach (var item in _fastPersistentDictionary.DictionarySerializedLookup)
+                    {
+                        byte[] keySerialized = _compressionHandler.SerializeNotCompressed(item.Key);
+                        byte[] len = BitConverter.GetBytes((UInt16)keySerialized.Length);
+                        byte[] keyPosSerialized = new byte[12];
+                        Buffer.BlockCopy(BitConverter.GetBytes(item.Value.Key), 0, keyPosSerialized, 0, 8);
+                        Buffer.BlockCopy(BitConverter.GetBytes(item.Value.Value), 0, keyPosSerialized, 8, 4);
+
+                        int totalLength = len.Length + keySerialized.Length + keyPosSerialized.Length;
+                        byte[] allData = new byte[totalLength];
+
+                        Buffer.BlockCopy(len, 0, allData, 0, len.Length);
+                        Buffer.BlockCopy(keySerialized, 0, allData, len.Length, keySerialized.Length);
+                        Buffer.BlockCopy(keyPosSerialized, 0, allData, len.Length + keySerialized.Length, keyPosSerialized.Length);
+
+                        _fastPersistentDictionary.FileStream_Keys.Write(allData);
+                    }
+                    _fastPersistentDictionary.FileStream_Keys.Flush();
+                }
             }
-
-            //if (File.Exists(tempFilePath))
-            //    File.Delete(tempFilePath);
-
-            //stpw.Stop();
-            //Console.WriteLine(stpw.ElapsedMilliseconds);
         }
 
 
