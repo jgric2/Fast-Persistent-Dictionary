@@ -100,6 +100,9 @@ namespace FastPersistentDictionary.Internals
             if (Directory.Exists(path) == false)
                 Directory.CreateDirectory(path);
 
+            var normalizedSavePath = Path.GetFullPath(savePath);
+            var isSameFile = normalizedSavePath == FileStream.Name;
+
             lock (_lockObj)
             {
                 var serializedLookup = _compressionHandler.SerializeCompressed(_fastPersistentDictionary.DictionarySerializedLookup);
@@ -127,7 +130,11 @@ namespace FastPersistentDictionary.Internals
 
                 var headerBytes = _compressionHandler.SerializeNotCompressed(header);
 
-                using (var origFs = new FileStream(savePath, FileMode.Create, FileAccess.Write))
+                // When saving to the same file, write to a temp file first to avoid
+                // truncating the active FileStream (FileMode.Create zeroes the file).
+                var writePath = isSameFile ? Path.GetTempFileName() : normalizedSavePath;
+
+                using (var origFs = new FileStream(writePath, FileMode.Create, FileAccess.Write))
                 {
                     //1. write out length of compressed database data as long
                     //2. write database data
@@ -149,9 +156,21 @@ namespace FastPersistentDictionary.Internals
                     origFs.Write(serializedLookup, 0, serializedLookup.Length); //4
                     origFs.Write(headerLength, 0, headerLength.Length); //5
                     origFs.Write(headerBytes, 0, headerBytes.Length); //6
-
-                    return header;
                 }
+
+                if (isSameFile)
+                {
+                    FileStream.SetLength(0);
+                    FileStream.Seek(0, SeekOrigin.Begin);
+                    using (var tempFs = new FileStream(writePath, FileMode.Open, FileAccess.Read))
+                    {
+                        tempFs.CopyTo(FileStream);
+                    }
+                    FileStream.Flush();
+                    File.Delete(writePath);
+                }
+
+                return header;
             }
         }
 
@@ -167,10 +186,9 @@ namespace FastPersistentDictionary.Internals
             //5. read in length of header as int
             //6. read in header
 
-            
-           // FileStream = new FileStream(_fastPersistentDictionary.FileLocation, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, _fastPersistentDictionary.fileStreamBufferSize, _fastPersistentDictionary.fileOptions); //| FileOptions.DeleteOnClose);
+            var normalizedLoadPath = Path.GetFullPath(loadPath);
 
-            if (loadPath == FileStream.Name)
+            if (normalizedLoadPath == FileStream.Name)
             {
                 //FileStream.Close();
                 //FileStream = new FileStream(_fastPersistentDictionary.FileLocation, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, _fastPersistentDictionary.fileStreamBufferSize, _fastPersistentDictionary.fileOptions); //| FileOptions.DeleteOnClose);

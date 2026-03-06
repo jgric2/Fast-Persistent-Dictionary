@@ -5105,11 +5105,12 @@ namespace FastPersistentDictionary.Tests
             public void TearDown()
             {
                 if (File.Exists(dictionary.FileLocation)) File.Delete(dictionary.FileLocation);
+                if (File.Exists("./tempdictSave.pcd")) File.Delete("./tempdictSave.pcd");
             }
 
             private FastPersistentDictionary<int, string> dictionary;
 
-           
+
             [Test]
             public void SaveDictionary_WithHeader_SavesDictionaryToFileWithGivenHeader()
             {

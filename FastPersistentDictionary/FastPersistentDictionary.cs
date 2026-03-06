@@ -143,9 +143,12 @@ namespace FastPersistentDictionary
                 FileStream.Close();
                 FileStream = null;
 
-                FileStream_Keys.Dispose();
-                FileStream_Keys.Close();
-                FileStream_Keys = null;
+                if (FileStream_Keys != null)
+                {
+                    FileStream_Keys.Dispose();
+                    FileStream_Keys.Close();
+                    FileStream_Keys = null;
+                }
 
                 if (File.Exists(FileLocation))
                     File.Delete(FileLocation);
