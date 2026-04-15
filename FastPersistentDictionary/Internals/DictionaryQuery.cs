@@ -176,7 +176,7 @@ namespace FastPersistentDictionary.Internals
                         buffer = new byte[bytesLeft];
 
 
-                        var bytesRead = FileStream.Read(buffer);
+                        FileStream.ReadExactly(buffer);
                         tempFileStream.Write(buffer);
                         tempDict[kvp.Key] = new KeyValuePair<long, int>(tempFileStream.Position - kvp.Value.Value, kvp.Value.Value);
                     }
@@ -234,7 +234,7 @@ namespace FastPersistentDictionary.Internals
                 {
                     var data = new byte[kvp.Value];
                     FileStream.Seek(kvp.Key, SeekOrigin.Begin);
-                    FileStream.Read(data, 0, kvp.Value);
+                    FileStream.ReadExactly(data, 0, kvp.Value);
 
                     if (_compressionHandler.Deserialize<TValue>(data).Equals(value))
                         ++count;
@@ -254,7 +254,7 @@ namespace FastPersistentDictionary.Internals
 
                 FileStream.Seek(valuePair.Value.Key, SeekOrigin.Begin);
                 var data = new byte[valuePair.Value.Value];
-                FileStream.Read(data, 0, valuePair.Value.Value);
+                FileStream.ReadExactly(data, 0, valuePair.Value.Value);
                 var value = _compressionHandler.Deserialize<TValue>(data);
 
                 return new KeyValuePair<TKey, TValue>(valuePair.Key, value);
@@ -538,48 +538,31 @@ namespace FastPersistentDictionary.Internals
             lock (_lockObj)
             {
                 _updateTimer.Stop();
-            }
 
-            if (forceCompact)
-            {
-                CompactDatabaseFile();
-            }
-
-            //if (forceCompact == false && (_canCompact == false || FileStream.Length < NextFileSizeCompact))
-            if (FileStream.Length > NextFileSizeCompact)
-            {
-
-                //Task.Run(async () =>
-                //{
+                if (forceCompact)
+                {
                     CompactDatabaseFile();
-               // });
-                
-                //_idleCompactTimer.Stop();
-                //_idleCompactTimer.Start();
-                // return;
+                }
+                else if (FileStream.Length > NextFileSizeCompact)
+                {
+                    CompactDatabaseFile();
+                }
             }
-
-
-            //lock (_lockObj)
-            //{
-            //    _updateTimer.Start();
-            //}
-            //if zero percent this means we ONLY compact on the idle timer.
-            //if (_percentageDiffBeforeCompact != 0)
-            //    CompactDatabaseFile();
         }
 
         public IEnumerable<KeyValuePair<TKey, TValue>> Where(Func<TKey, TValue, bool> predicate)
         {
+            var results = new List<KeyValuePair<TKey, TValue>>();
             lock (_lockObj)
             {
                 foreach (var key in _fastPersistentDictionary.DictionarySerializedLookup.Keys)
                 {
                     var value = _dictionaryAccessor.Get(key);
                     if (predicate(key, value))
-                        yield return new KeyValuePair<TKey, TValue>(key, value);
+                        results.Add(new KeyValuePair<TKey, TValue>(key, value));
                 }
             }
+            return results;
         }
     }
 }

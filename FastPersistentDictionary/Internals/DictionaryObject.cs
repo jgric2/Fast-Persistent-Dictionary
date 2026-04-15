@@ -29,30 +29,24 @@ namespace FastPersistentDictionary.Internals
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Equals(object obj)
         {
+            if (ReferenceEquals(this, obj))
+                return true;
+
             lock (_lockObj)
             {
-                if (this.GetHashCode() == obj.GetHashCode())
-                    return true;
+                if (obj is FastPersistentDictionary<TKey, TValue> other == false)
+                    return false;
 
-                if (ReferenceEquals(this, obj))
-                    return true;
+                if (other.DictionaryAccessor.Count != _dictionaryAccessor.Count)
+                    return false;
 
-                lock (_lockObj)
+                foreach (var pair in this)
                 {
-                    if (obj is FastPersistentDictionary<TKey, TValue> other == false)
+                    if (other.DictionaryAccessor.TryGetValue(pair.Key, out var otherVal) == false)
                         return false;
 
-                    if (other.DictionaryAccessor.Count != _dictionaryAccessor.Count)
+                    if (Equals(pair.Value, otherVal) == false)
                         return false;
-
-                    foreach (var pair in this)
-                    {
-                        if (other.DictionaryAccessor.TryGetValue(pair.Key, out var otherVal) == false)
-                            return false;
-
-                        if (Equals(pair.Value, otherVal) == false)
-                            return false;
-                    }
                 }
 
                 return true;

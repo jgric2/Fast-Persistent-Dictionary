@@ -67,7 +67,7 @@ namespace FastPersistentDictionary.Internals
                 {
                     var data = new byte[kvp.Value];
                     FileStream.Seek(kvp.Key, SeekOrigin.Begin);
-                    FileStream.Read(data, 0, kvp.Value);
+                    FileStream.ReadExactly(data, 0, kvp.Value);
 
                     sumVal += _compressionHandler.Deserialize<TValue>(data);
                 }
@@ -143,12 +143,16 @@ namespace FastPersistentDictionary.Internals
 
                 var comparer = Comparer<TValue>.Default;
                 var max = default(TValue);
+                var isFirstValue = true;
 
                 foreach (var key in _persistentDictionaryPro.DictionarySerializedLookup.Keys)
                 {
                     var value = _dictionaryAccessor.Get(key);
-                    if (comparer.Compare(value, max) > 0)
+                    if (isFirstValue || comparer.Compare(value, max) > 0)
+                    {
                         max = value;
+                        isFirstValue = false;
+                    }
                 }
 
                 return max;

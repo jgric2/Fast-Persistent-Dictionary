@@ -39,17 +39,19 @@ namespace FastPersistentDictionary.Internals.Accessor
         {
             get
             {
+                var results = new List<TValue>();
                 lock (_lockObj)
                 {
                     foreach (var kvp in _fastPersistentDictionary.DictionarySerializedLookup.Values)
                     {
                         var data = new byte[kvp.Value];
                         FileStream.Seek(kvp.Key, SeekOrigin.Begin);
-                        FileStream.Read(data, 0, kvp.Value);
+                        FileStream.ReadExactly(data, 0, kvp.Value);
 
-                        yield return _compressionHandler.Deserialize<TValue>(data);
+                        results.Add(_compressionHandler.Deserialize<TValue>(data));
                     }
                 }
+                return results;
             }
         }
 
@@ -105,10 +107,6 @@ namespace FastPersistentDictionary.Internals.Accessor
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AddOrUpdate(TKey key, TValue value)
         {
-            lock (_lockObj)
-                if (_fastPersistentDictionary.DictionarySerializedLookup.ContainsKey(key))
-                    _fastPersistentDictionary.DictionarySerializedLookup.Remove(key);
-
             var data = _compressionHandler.Serialize(value);
             lock (_lockObj)
             {
@@ -140,7 +138,7 @@ namespace FastPersistentDictionary.Internals.Accessor
                 var data = new byte[lookupCoordinates.Value];
 
                 FileStream.Seek(lookupCoordinates.Key, SeekOrigin.Begin);
-                FileStream.Read(data, 0, lookupCoordinates.Value);
+                FileStream.ReadExactly(data, 0, lookupCoordinates.Value);
 
                 var valueDeserialized = updater(_compressionHandler.Deserialize<TValue>(data));
                 var newData = _compressionHandler.Serialize(valueDeserialized);
@@ -157,10 +155,10 @@ namespace FastPersistentDictionary.Internals.Accessor
                     var kvpLookup = new KeyValuePair<long, int>(FileStream.Position, newData.Length);
                     _fastPersistentDictionary.DictionarySerializedLookup[key] = kvpLookup;
                     FileStream.Write(newData, 0, newData.Length);
-
-                    _updateTimer.Stop();
-                    _updateTimer.Start();
                 }
+
+                _updateTimer.Stop();
+                _updateTimer.Start();
             }
         }
 
@@ -218,9 +216,11 @@ namespace FastPersistentDictionary.Internals.Accessor
 
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
         {
+            var results = new List<KeyValuePair<TKey, TValue>>();
             lock (_lockObj)
                 foreach (var key in _fastPersistentDictionary.DictionarySerializedLookup.Keys)
-                    yield return new KeyValuePair<TKey, TValue>(key, this[key]);
+                    results.Add(new KeyValuePair<TKey, TValue>(key, this[key]));
+            return results.GetEnumerator();
         }
 
         public void GetObjectData(SerializationInfo info, StreamingContext context)
@@ -276,7 +276,8 @@ namespace FastPersistentDictionary.Internals.Accessor
             lock (_lockObj)
             {
                 FileStream.SetLength(0);
-                foreach (var key in _fastPersistentDictionary.DictionarySerializedLookup.Keys)
+                var keys = _fastPersistentDictionary.DictionarySerializedLookup.Keys.ToList();
+                foreach (var key in keys)
                 {
                     var location = new KeyValuePair<long, int>(FileStream.Position, defaultValue.Length);
                     FileStream.Write(defaultValue, 0, defaultValue.Length);
@@ -322,7 +323,7 @@ namespace FastPersistentDictionary.Internals.Accessor
                 foreach (var key in _fastPersistentDictionary.DictionarySerializedLookup.Values)
                 {
                     var val = SeekReadAndDeserialize(key.Key, key.Value);
-                    if (val == null && value == null || val.Equals(value))
+                    if ((val == null && value == null) || (val != null && val.Equals(value)))
                         return true;
                 }
 
@@ -507,7 +508,7 @@ namespace FastPersistentDictionary.Internals.Accessor
                     if (FileStream.Position != lookupCoordinates.Key)
                         FileStream.Seek(lookupCoordinates.Key, SeekOrigin.Begin);
 
-                    FileStream.Read(data, 0, lookupCoordinates.Value);
+                    FileStream.ReadExactly(data, 0, lookupCoordinates.Value);
 
                     value = _compressionHandler.Deserialize<TValue>(data);
                     _updateTimer.Stop();
@@ -533,7 +534,7 @@ namespace FastPersistentDictionary.Internals.Accessor
                     var data = new byte[lookupCoordinates.Value];
 
                     FileStream.Seek(lookupCoordinates.Key, SeekOrigin.Begin);
-                    FileStream.Read(data, 0, lookupCoordinates.Value);
+                    FileStream.ReadExactly(data, 0, lookupCoordinates.Value);
 
                     _updateTimer.Stop();
                     _updateTimer.Start();
@@ -551,7 +552,7 @@ namespace FastPersistentDictionary.Internals.Accessor
         {
             var data = new byte[length];
             FileStream.Seek(index, SeekOrigin.Begin);
-            FileStream.Read(data, 0, length);
+            FileStream.ReadExactly(data, 0, length);
 
             _updateTimer.Stop();
             _updateTimer.Start();
@@ -564,7 +565,7 @@ namespace FastPersistentDictionary.Internals.Accessor
         {
             var data = new byte[length];
             FileStream.Seek(index, SeekOrigin.Begin);
-            FileStream.Read(data, 0, length);
+            FileStream.ReadExactly(data, 0, length);
 
             return data;
         }

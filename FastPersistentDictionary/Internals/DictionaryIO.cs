@@ -200,19 +200,19 @@ namespace FastPersistentDictionary.Internals
                     var lengthLookupBytes = new byte[4]; //int //CONSIDER long, doubt file size would ever get that size but only 4 more bytes
                     var lengthHeaderBytes = new byte[4]; //int
 
-                    FileStream.Read(lengthCompressedDataBaseBytes, 0, 8);
+                    FileStream.ReadExactly(lengthCompressedDataBaseBytes, 0, 8);
                     var lengthCompressedDataBase = BitConverter.ToInt64(lengthCompressedDataBaseBytes, 0);
                     FileStream.Position += lengthCompressedDataBase;
 
-                    FileStream.Read(lengthLookupBytes, 0, 4);
+                    FileStream.ReadExactly(lengthLookupBytes, 0, 4);
                     var lengthLookup = BitConverter.ToInt32(lengthLookupBytes, 0);
                     var lookupBytes = new byte[lengthLookup];
-                    FileStream.Read(lookupBytes, 0, lengthLookup);
+                    FileStream.ReadExactly(lookupBytes, 0, lengthLookup);
 
-                    FileStream.Read(lengthHeaderBytes, 0, 4);
+                    FileStream.ReadExactly(lengthHeaderBytes, 0, 4);
                     var lengthHeader = BitConverter.ToInt32(lengthHeaderBytes, 0);
                     var lookupHeader = new byte[lengthHeader];
-                    FileStream.Read(lookupHeader, 0, lengthHeader);
+                    FileStream.ReadExactly(lookupHeader, 0, lengthHeader);
 
                     var header = _compressionHandler.DeserializeNotCompressed<DictionaryStructs.DictionarySaveHeader>(lookupHeader);
                     _currentHeader = header;
@@ -231,14 +231,21 @@ namespace FastPersistentDictionary.Internals
 
                         _fastPersistentDictionary.DictionarySerializedLookup = loadedLookup;
 
-                        FileStream.Seek(8, SeekOrigin.Begin); // initial long for length on file //huh
+                        FileStream.Seek(8, SeekOrigin.Begin);
                         var buffer = new byte[8192];
 
-                        int count;
                         newFileStream.SetLength(0);
 
-                        while ((count = FileStream.Read(buffer, 0, buffer.Length)) != 0)
+                        // Only copy the actual database data, not the trailing lookup/header
+                        long remaining = lengthCompressedDataBase;
+                        while (remaining > 0)
+                        {
+                            int toRead = (int)Math.Min(buffer.Length, remaining);
+                            int count = FileStream.Read(buffer, 0, toRead);
+                            if (count == 0) break;
                             newFileStream.Write(buffer, 0, count);
+                            remaining -= count;
+                        }
 
                         FileStream.SetLength(0);
                         FileStream.Seek(0, SeekOrigin.Begin);
@@ -262,19 +269,19 @@ namespace FastPersistentDictionary.Internals
                     var lengthLookupBytes = new byte[4]; //int //CONSIDER long, doubt file size would ever get that size but only 4 more bytes
                     var lengthHeaderBytes = new byte[4]; //int
 
-                    newFileStream.Read(lengthCompressedDataBaseBytes, 0, 8);
+                    newFileStream.ReadExactly(lengthCompressedDataBaseBytes, 0, 8);
                     var lengthCompressedDataBase = BitConverter.ToInt64(lengthCompressedDataBaseBytes, 0);
                     newFileStream.Position += lengthCompressedDataBase;
 
-                    newFileStream.Read(lengthLookupBytes, 0, 4);
+                    newFileStream.ReadExactly(lengthLookupBytes, 0, 4);
                     var lengthLookup = BitConverter.ToInt32(lengthLookupBytes, 0);
                     var lookupBytes = new byte[lengthLookup];
-                    newFileStream.Read(lookupBytes, 0, lengthLookup);
+                    newFileStream.ReadExactly(lookupBytes, 0, lengthLookup);
 
-                    newFileStream.Read(lengthHeaderBytes, 0, 4);
+                    newFileStream.ReadExactly(lengthHeaderBytes, 0, 4);
                     var lengthHeader = BitConverter.ToInt32(lengthHeaderBytes, 0);
                     var lookupHeader = new byte[lengthHeader];
-                    newFileStream.Read(lookupHeader, 0, lengthHeader);
+                    newFileStream.ReadExactly(lookupHeader, 0, lengthHeader);
 
                     var header = _compressionHandler.DeserializeNotCompressed<DictionaryStructs.DictionarySaveHeader>(lookupHeader);
                     _currentHeader = header;
@@ -294,14 +301,21 @@ namespace FastPersistentDictionary.Internals
                         foreach (var kvp in loadedLookup)
                             _fastPersistentDictionary.DictionarySerializedLookup[kvp.Key] = kvp.Value;
 
-                        newFileStream.Seek(8, SeekOrigin.Begin); // initial long for length on file //huh
+                        newFileStream.Seek(8, SeekOrigin.Begin);
                         var buffer = new byte[8192];
 
-                        int count;
                         FileStream.SetLength(0);
 
-                        while ((count = newFileStream.Read(buffer, 0, buffer.Length)) != 0)
+                        // Only copy the actual database data, not the trailing lookup/header
+                        long remaining = lengthCompressedDataBase;
+                        while (remaining > 0)
+                        {
+                            int toRead = (int)Math.Min(buffer.Length, remaining);
+                            int count = newFileStream.Read(buffer, 0, toRead);
+                            if (count == 0) break;
                             FileStream.Write(buffer, 0, count);
+                            remaining -= count;
+                        }
 
                         _dictionaryQuery.LastFileSizeCompact = FileStream.Length;
                         _dictionaryQuery.NextFileSizeCompact = _dictionaryQuery.LastFileSizeCompact + (_dictionaryQuery.LastFileSizeCompact * (long)(_fastPersistentDictionary.PercentageChangeBeforeCompact / 100));
@@ -323,7 +337,7 @@ namespace FastPersistentDictionary.Internals
                 {
                     var data = new byte[kvp.Value.Value];
                     FileStream.Seek(kvp.Value.Key, SeekOrigin.Begin);
-                    FileStream.Read(data, 0, kvp.Value.Value);
+                    FileStream.ReadExactly(data, 0, kvp.Value.Value);
 
                     allData[kvp.Key] = _compressionHandler.Deserialize<TValue>(data);
                 }

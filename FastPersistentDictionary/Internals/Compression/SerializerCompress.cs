@@ -35,8 +35,8 @@ namespace FastPersistentDictionary.Internals.Compression
 
         public TValue Deserialize(Type type, byte[] data)
         {
-
-            return (TValue)serializer.Deserialize(type,data);
+            data = K4os.Compression.LZ4.LZ4Pickler.Unpickle(data);
+            return (TValue)serializer.Deserialize(type, data);
         }
 
         public byte[] SerializeNotCompressed<T>(T obj)

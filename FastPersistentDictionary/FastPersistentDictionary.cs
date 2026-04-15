@@ -129,79 +129,71 @@ namespace FastPersistentDictionary
 
         public void Dispose()
         {
-            //todo fill this out
             if (_disposed)
                 return;
 
-
-            if (DeleteDBOnClose)
-            {
-
-                _updateTimer.Stop();
-                _updateTimer = null;
-                FileStream.Dispose();
-                FileStream.Close();
-                FileStream = null;
-
-                if (FileStream_Keys != null)
-                {
-                    FileStream_Keys.Dispose();
-                    FileStream_Keys.Close();
-                    FileStream_Keys = null;
-                }
-
-                if (File.Exists(FileLocation))
-                    File.Delete(FileLocation);
-
-                var fpath = Path.GetDirectoryName(FileLocation);
-                var fname = Path.GetFileNameWithoutExtension(FileLocation);
-                var recFullPath = Path.Combine(fpath, fname + ".prec");
-
-                if (File.Exists(recFullPath))
-                    File.Delete(recFullPath);
-            }
-            else
-            {
-                //Write out save
-                //
-                var tempPath = Path.GetTempFileName();
-                SaveDictionary(tempPath, comment: "Time Saved: " + DateTime.Now.ToString());
-
-                _updateTimer.Stop();
-                _updateTimer = null;
-                FileStream.Dispose();
-                FileStream.Close();
-                FileStream = null;
-
-                if (File.Exists(FileLocation))
-                    File.Delete(FileLocation);
-
-                if (File.Exists(tempPath))
-                    File.Move(tempPath, FileLocation);
-
-                var fpath = Path.GetDirectoryName(FileLocation);
-                var fname = Path.GetFileNameWithoutExtension(FileLocation);
-                var recFullPath = Path.Combine(fpath, fname + ".prec");
-
-                if (File.Exists(recFullPath))
-                    File.Delete(recFullPath);
-            }
-
-
+            _disposed = true;
+            GC.SuppressFinalize(this);
 
             try
             {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
+                if (DeleteDBOnClose)
+                {
+                    _updateTimer.Stop();
+                    _updateTimer = null;
+                    FileStream.Dispose();
+                    FileStream = null;
 
+                    if (FileStream_Keys != null)
+                    {
+                        FileStream_Keys.Dispose();
+                        FileStream_Keys = null;
+                    }
+
+                    if (File.Exists(FileLocation))
+                        File.Delete(FileLocation);
+
+                    var fpath = Path.GetDirectoryName(FileLocation);
+                    var fname = Path.GetFileNameWithoutExtension(FileLocation);
+                    var recFullPath = Path.Combine(fpath, fname + ".prec");
+
+                    if (File.Exists(recFullPath))
+                        File.Delete(recFullPath);
+                }
+                else
+                {
+                    var tempPath = Path.GetTempFileName();
+                    SaveDictionary(tempPath, comment: "Time Saved: " + DateTime.Now.ToString());
+
+                    _updateTimer.Stop();
+                    _updateTimer = null;
+                    FileStream.Dispose();
+                    FileStream = null;
+
+                    if (FileStream_Keys != null)
+                    {
+                        FileStream_Keys.Dispose();
+                        FileStream_Keys = null;
+                    }
+
+                    if (File.Exists(FileLocation))
+                        File.Delete(FileLocation);
+
+                    if (File.Exists(tempPath))
+                        File.Move(tempPath, FileLocation);
+
+                    var fpath = Path.GetDirectoryName(FileLocation);
+                    var fname = Path.GetFileNameWithoutExtension(FileLocation);
+                    var recFullPath = Path.Combine(fpath, fname + ".prec");
+
+                    if (File.Exists(recFullPath))
+                        File.Delete(recFullPath);
+                }
             }
             catch
             {
-                // ignored
+                // ignored during dispose
             }
-
-            _disposed = true;
-            GC.SuppressFinalize(this);
         }
 
         ~FastPersistentDictionary()
@@ -241,19 +233,19 @@ namespace FastPersistentDictionary
                         while (FileStream_Keys.Position < FileStream_Keys.Length)
                         {
                             // Read keySerializedLen
-                            FileStream_Keys.Read(buffer2, 0, 2);
+                            FileStream_Keys.ReadExactly(buffer2, 0, 2);
                             var keySerializedLen = BitConverter.ToUInt16(buffer2, 0);
 
                             // Read keySerialized
                             var keySerialized = new byte[keySerializedLen];
-                            FileStream_Keys.Read(keySerialized, 0, keySerializedLen);
+                            FileStream_Keys.ReadExactly(keySerialized, 0, keySerializedLen);
 
                             // Read valuePos
-                            FileStream_Keys.Read(buffer8, 0, 8);
+                            FileStream_Keys.ReadExactly(buffer8, 0, 8);
                             var valuePos = BitConverter.ToInt64(buffer8, 0);
 
                             // Read valueLen
-                            FileStream_Keys.Read(buffer4, 0, 4);
+                            FileStream_Keys.ReadExactly(buffer4, 0, 4);
                             var valueLen = BitConverter.ToInt32(buffer4, 0);
 
                             var keyDeserialized = _compressionHandler.DeserializeKey(keySerialized);

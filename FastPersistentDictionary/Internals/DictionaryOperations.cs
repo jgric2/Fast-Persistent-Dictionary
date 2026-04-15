@@ -75,7 +75,7 @@ namespace FastPersistentDictionary.Internals
                 {
                     var data = new byte[item.Value.Value];
                     FileStream.Seek(item.Value.Key, SeekOrigin.Begin);
-                    FileStream.Read(data, 0, item.Value.Value);
+                    FileStream.ReadExactly(data, 0, item.Value.Value);
 
                     array[index++] = new KeyValuePair<TKey, TValue>(item.Key, _compressionHandler.Deserialize<TValue>(data));
                 }
@@ -92,26 +92,30 @@ namespace FastPersistentDictionary.Internals
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerable<KeyValuePair<TKey, TValue>> Take(int count)
         {
+            var results = new List<KeyValuePair<TKey, TValue>>();
             var startIndex = 0;
             foreach (var item in _dictionaryAccessor)
             {
                 if (startIndex++ == count)
                     break;
 
-                yield return item;
+                results.Add(item);
             }
+            return results;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public IEnumerable<KeyValuePair<TKey, TValue>> TakeWhile(Func<KeyValuePair<TKey, TValue>, bool> predicate)
         {
+            var results = new List<KeyValuePair<TKey, TValue>>();
             foreach (var item in _dictionaryAccessor)
             {
                 if (predicate(item) == false)
                     break;
 
-                yield return item;
+                results.Add(item);
             }
+            return results;
         }
 
         /// <summary>
@@ -123,6 +127,10 @@ namespace FastPersistentDictionary.Internals
         {
             lock (_lockObj)
             {
+                // Remove any stale file so the new dictionary starts empty
+                if (File.Exists(path))
+                    File.Delete(path);
+
                 var copiedDictionary = new FastPersistentDictionary<TKey, TValue>(
                     path,
                     _persistentDictionaryPro.CrashRecovery,
@@ -226,15 +234,17 @@ namespace FastPersistentDictionary.Internals
             lock (_lockObj)
             {
                 var invertedDictionary = new FastPersistentDictionary<TValue, TKey>();
+                var valuesSet = new HashSet<TValue>();
 
-                var valuesSet = new HashSet<TValue>(_persistentDictionaryPro.Values);
+                foreach (var key in _persistentDictionaryPro.DictionarySerializedLookup.Keys)
+                {
+                    var value = _persistentDictionaryPro.DictionaryAccessor.Get(key);
+                    if (valuesSet.Add(value) == false)
+                        throw new InvalidOperationException(
+                            "Cannot invert PersistentDictionaryPro: not all values are unique.");
 
-                if (_persistentDictionaryPro.Values.Count() != valuesSet.Count)
-                    throw new InvalidOperationException(
-                        "Cannot invert PersistentDictionaryPro: not all values are unique.");
-
-                foreach (var key in _persistentDictionaryPro.Keys)
-                    invertedDictionary.Add(_persistentDictionaryPro.DictionaryAccessor.Get(key), key);
+                    invertedDictionary.Add(value, key);
+                }
 
                 return invertedDictionary;
             }
@@ -245,6 +255,7 @@ namespace FastPersistentDictionary.Internals
             if (number < 0)
                 throw new ArgumentOutOfRangeException(nameof(number), "Number of elements to skip cannot be negative.");
 
+            var results = new List<KeyValuePair<TKey, TValue>>();
             var count = 0;
             lock (_lockObj)
                 foreach (var key in _persistentDictionaryPro.Keys)
@@ -252,12 +263,14 @@ namespace FastPersistentDictionary.Internals
                     if (count++ < number)
                         continue;
 
-                    yield return new KeyValuePair<TKey, TValue>(key, _dictionaryAccessor.Get(key));
+                    results.Add(new KeyValuePair<TKey, TValue>(key, _dictionaryAccessor.Get(key)));
                 }
+            return results;
         }
 
         public IEnumerable<KeyValuePair<TKey, TValue>> SkipWhile(Func<KeyValuePair<TKey, TValue>, bool> predicate)
         {
+            var results = new List<KeyValuePair<TKey, TValue>>();
             lock (_lockObj)
             {
                 var skipping = true;
@@ -274,22 +287,26 @@ namespace FastPersistentDictionary.Internals
                             break;
                     }
 
-                    yield return entry;
+                    results.Add(entry);
                 }
             }
+            return results;
         }
 
         public IEnumerable<KeyValuePair<TKey, TValue>> DistinctByKey()
         {
+            var results = new List<KeyValuePair<TKey, TValue>>();
             var distinctKeys = new HashSet<TKey>();
             lock (_lockObj)
                 foreach (var pair in _dictionaryAccessor)
                     if (distinctKeys.Add(pair.Key))
-                        yield return pair;
+                        results.Add(pair);
+            return results;
         }
 
         public IEnumerable<KeyValuePair<TKey, TValue>> Except(FastPersistentDictionary<TKey, TValue> otherDict)
         {
+            var results = new List<KeyValuePair<TKey, TValue>>();
             var otherDictAsRegularDict = new Dictionary<TKey, TValue>();
             lock (_lockObj)
             {
@@ -298,17 +315,19 @@ namespace FastPersistentDictionary.Internals
 
                 foreach (var pair in _dictionaryAccessor)
                     if (otherDictAsRegularDict.ContainsKey(pair.Key) == false)
-                        yield return pair;
+                        results.Add(pair);
             }
+            return results;
         }
 
         public void Concat(FastPersistentDictionary<TKey, TValue> other)
         {
             lock (_lockObj)
-                foreach (var keyValuePair in _persistentDictionaryPro)
+                foreach (var keyValuePair in other)
                 {
                     var key = keyValuePair.Key;
-                    _dictionaryAccessor.Add(key, other.DictionaryAccessor.Get(key));
+                    if (_persistentDictionaryPro.DictionarySerializedLookup.ContainsKey(key) == false)
+                        _dictionaryAccessor.Add(key, keyValuePair.Value);
                 }
         }
 
@@ -338,7 +357,7 @@ namespace FastPersistentDictionary.Internals
                 foreach (var kvp in _persistentDictionaryPro.DictionarySerializedLookup.Keys)
                     unionDictionary.DictionaryAccessor.Add(kvp, _persistentDictionaryPro.DictionaryAccessor.Get(kvp));
 
-                foreach (var kvp in _persistentDictionaryPro.DictionarySerializedLookup.Keys)
+                foreach (var kvp in other.DictionarySerializedLookup.Keys)
                     if (unionDictionary.DictionaryAccessor.ContainsKey(kvp) == false)
                         unionDictionary.DictionaryAccessor.Add(kvp, other.DictionaryAccessor.Get(kvp));
 
@@ -353,6 +372,7 @@ namespace FastPersistentDictionary.Internals
         /// <returns></returns>
         public IEnumerable<IEnumerable<KeyValuePair<TKey, TValue>>> InBatchesOf(int batchSize)
         {
+            var batches = new List<IEnumerable<KeyValuePair<TKey, TValue>>>();
             var batch = new List<KeyValuePair<TKey, TValue>>();
             lock (_lockObj)
             {
@@ -362,14 +382,14 @@ namespace FastPersistentDictionary.Internals
                     if (batch.Count != batchSize)
                         continue;
 
-                    yield return batch;
+                    batches.Add(batch);
                     batch = new List<KeyValuePair<TKey, TValue>>();
                 }
 
                 if (batch.Any())
-                    yield return batch;
-
+                    batches.Add(batch);
             }
+            return batches;
         }
 
         //Todo: this can be optimized more, got lazy
@@ -380,14 +400,16 @@ namespace FastPersistentDictionary.Internals
         /// <returns></returns>
         public IEnumerable<KeyValuePair<TKey, TValue>> TakeLast(int number)
         {
+            var results = new List<KeyValuePair<TKey, TValue>>();
             lock (_lockObj)
             {
                 if (number > _persistentDictionaryPro.Count)
                     number = _persistentDictionaryPro.Count;
 
                 foreach (var key in _persistentDictionaryPro.DictionarySerializedLookup.Keys.Skip(Math.Max(0, _persistentDictionaryPro.DictionarySerializedLookup.Keys.Count() - number)))
-                    yield return new KeyValuePair<TKey, TValue>(key, _dictionaryAccessor.Get(key));
+                    results.Add(new KeyValuePair<TKey, TValue>(key, _dictionaryAccessor.Get(key)));
             }
+            return results;
         }
 
         public FastPersistentDictionary<TKey, Tuple<TValue, TSecond>> Zip<TSecond>(FastPersistentDictionary<TKey, TSecond> second)
@@ -431,11 +453,7 @@ namespace FastPersistentDictionary.Internals
 
         public ParallelQuery<KeyValuePair<TKey, TValue>> AsParallel()
         {
-            lock (_lockObj)
-            {
-                var lookup = _persistentDictionaryPro.DictionarySerializedLookup.AsParallel().Select(kv => new KeyValuePair<TKey, TValue>(kv.Key, _dictionaryAccessor.Get(kv.Key)));
-                return lookup;
-            }
+            return ToArray().AsParallel();
         }
 
         public void Shuffle()
